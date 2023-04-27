@@ -13,7 +13,20 @@ export class QrController {
       return;
     }
 
-    const qrCodeImage = this.qrService.generateQR(data);
+    const qrCodeImage = await this.qrService.generateQR(data, 256, 4, 'H', {
+      square: {
+        color: '#156d1c',
+      },
+      border: {
+        width: 5,
+        color: '#fff',
+      },
+      background: '#00ffbb',
+      logo: {
+        path: './logo.png',
+        maxSize: 128,
+      },
+    });
 
     res.setHeader('Content-Type', 'image/png');
     res.send(qrCodeImage);
