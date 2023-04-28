@@ -13,18 +13,19 @@ export class QrController {
       return;
     }
 
-    const qrCodeImage = await this.qrService.generateQR(data, 256, 4, 'H', {
+    const qrCodeImage = await this.qrService.generateQR(data, 512, 4, 'H', {
       square: {
-        color: '#156d1c',
+        color: '#000',
       },
       border: {
         width: 5,
         color: '#fff',
       },
-      background: '#00ffbb',
+      background: '#fff',
       logo: {
         path: './logo.png',
-        maxSize: 128,
+        opacity: 1,
+        proportion: 0.3
       },
     });
 
