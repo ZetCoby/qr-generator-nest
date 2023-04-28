@@ -4,12 +4,9 @@ import { createCanvas, loadImage, CanvasRenderingContext2D, Canvas } from 'canva
 
 type DecimalRange = 0.0 | 0.1 | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 | 0.9 | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 | 1.7 | 1.8 | 1.9 | 2.0;
 
-
-
 interface QROptions {
-  square: {
-    color: string;
-  };
+  shapeStyle?: 'square' | 'dot' | 'rounded';
+  color?: string;
   border?: {
     width: number;
     color: string;
@@ -20,6 +17,12 @@ interface QROptions {
     maxSize?: number | null;
     opacity?: DecimalRange | null;
     proportion?: DecimalRange | null;
+  } | null;
+  gradient?: {
+    type: 'linear' | 'area';
+    startColor: string;
+    endColor: string;
+    angleDegrees?: number;
   } | null;
 }
 
@@ -63,8 +66,11 @@ export class QrService {
 
    this.drawBackgroundColor(ctx, options, canvasSize)
    this.drawQRCodeBorder(ctx, options, borderWidth, qrSize)
+   const gradient = options.gradient
+    ? this.createQRCodeGradient(ctx, qrSize, options.gradient)
+    : undefined;
 
-    this.drawQRCodeRounded(ctx, matrix, options, blockSize, borderWidth)
+   this.drawShapes(ctx, matrix, options, blockSize, borderWidth, gradient);
 
     // Draw logo in the middle
     if (options.logo) {
@@ -95,13 +101,15 @@ export class QrService {
     matrix: number[][],
     options: QROptions,
     blockSize: number,
-    borderWidth: number
+    borderWidth: number,
+    gradient?: CanvasGradient
   ): void {
     // Draw QR code squares
     for (let row = 0; row < matrix.length; row++) {
       for (let col = 0; col < matrix[row].length; col++) {
         if (matrix[row][col]) {
-          ctx.fillStyle = options.square.color || 'black'; // Set the color of the square
+          ctx.fillStyle = options.color ? options.color : gradient;
+
           ctx.fillRect((col * blockSize) + borderWidth, (row * blockSize) + borderWidth, blockSize, blockSize);
         }
       }
@@ -113,13 +121,15 @@ export class QrService {
     matrix: number[][],
     options: QROptions,
     blockSize: number,
-    borderWidth: number
+    borderWidth: number,
+    gradient?: CanvasGradient
   ): void {
     // Draw QR code dots
     for (let row = 0; row < matrix.length; row++) {
       for (let col = 0; col < matrix[row].length; col++) {
         if (matrix[row][col]) {
-          ctx.fillStyle = options.square.color || 'black'; // Set the color of the dot
+          ctx.fillStyle = options.color ? options.color : gradient;
+
           ctx.beginPath();
           ctx.arc(
             (col * blockSize) + borderWidth + blockSize / 2,
@@ -140,13 +150,17 @@ export class QrService {
     matrix: number[][],
     options: QROptions,
     blockSize: number,
-    borderWidth: number
+    borderWidth: number,
+    gradient?: CanvasGradient
   ): void {
+
+
     // Draw QR code rounded
     for (let row = 0; row < matrix.length; row++) {
       for (let col = 0; col < matrix[row].length; col++) {
         if (matrix[row][col]) {
-          ctx.fillStyle = options.square.color || 'black'; // Set the color of the dot
+          ctx.fillStyle = options.color ? options.color : gradient;
+
 
           const radius = blockSize / 2;
           const xPos = (col * blockSize) + borderWidth;
@@ -237,5 +251,57 @@ export class QrService {
   
       ctx.closePath();
     }
+
+    private createQRCodeGradient(
+      ctx: CanvasRenderingContext2D,
+      qrSize: number,
+      gradientOptions: QROptions['gradient']
+    ): CanvasGradient {
+      if (gradientOptions.type === 'area') {
+        const centerX = qrSize / 2;
+        const centerY = qrSize / 2;
+        const radius = Math.sqrt(Math.pow(qrSize / 2, 2) * 2);
+        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+        gradient.addColorStop(0, gradientOptions.startColor);
+        gradient.addColorStop(1, gradientOptions.endColor);
+        return gradient;
+      } else {
+        const angleDegrees = gradientOptions.angleDegrees ?? 0;
+        const angleRadians = (angleDegrees * Math.PI) / 180;
+        const startX = qrSize / 2 * (1 - Math.cos(angleRadians));
+        const startY = qrSize / 2 * (1 - Math.sin(angleRadians));
+        const endX = qrSize / 2 * (1 + Math.cos(angleRadians));
+        const endY = qrSize / 2 * (1 + Math.sin(angleRadians));
+    
+        const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+        gradient.addColorStop(0, gradientOptions.startColor);
+        gradient.addColorStop(1, gradientOptions.endColor);
+        return gradient;
+      }
+    }
+    
+
+    private drawShapes(
+      ctx: CanvasRenderingContext2D,
+      matrix: number[][],
+      options: QROptions,
+      blockSize: number,
+      borderWidth: number,
+      gradient?: CanvasGradient
+    ): void {
+      // Determine the draw function based on the shape style option
+      let drawFunction: (ctx: CanvasRenderingContext2D, matrix: number[][], options: QROptions, blockSize: number, borderWidth: number) => void;
+      if (options.shapeStyle === 'dot') {
+        drawFunction = this.drawDotsCode;
+      } else if (options.shapeStyle === 'rounded') {
+        drawFunction = this.drawQRCodeRounded;
+      } else {
+        drawFunction = this.drawSquaresCode;
+      }
+  
+      // Call the determined draw function
+      drawFunction.call(this, ctx, matrix, options, blockSize, borderWidth, gradient);
+    }
+ 
 
 }
