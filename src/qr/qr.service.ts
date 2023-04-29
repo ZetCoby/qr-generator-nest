@@ -6,6 +6,7 @@ type DecimalRange = 0.0 | 0.1 | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 | 0.9 | 
 
 interface QROptions {
   shapeStyle?: 'square' | 'dot' | 'rounded';
+  positionMarkerShape?: 'square' | 'dot' | 'rounded';
   color?: string;
   border?: {
     width: number;
@@ -64,13 +65,13 @@ export class QrService {
     const canvas: Canvas = createCanvas(canvasSize, canvasSize);
     const ctx: CanvasRenderingContext2D = canvas.getContext('2d');
 
-   this.drawBackgroundColor(ctx, options, canvasSize)
-   this.drawQRCodeBorder(ctx, options, borderWidth, qrSize)
-   const gradient = options.gradient
-    ? this.createQRCodeGradient(ctx, qrSize, options.gradient)
-    : undefined;
+    this.drawBackgroundColor(ctx, options, canvasSize)
+    this.drawQRCodeBorder(ctx, options, borderWidth, qrSize)
+    const gradient = options.gradient
+      ? this.createQRCodeGradient(ctx, qrSize, options.gradient)
+      : undefined;
 
-   this.drawShapes(ctx, matrix, options, blockSize, borderWidth, gradient);
+    this.drawShapes(ctx, matrix, options, blockSize, borderWidth, gradient);
 
     // Draw logo in the middle
     if (options.logo) {
@@ -102,12 +103,13 @@ export class QrService {
     options: QROptions,
     blockSize: number,
     borderWidth: number,
+    filter: (row: number, col: number) => boolean,
     gradient?: CanvasGradient
   ): void {
     // Draw QR code squares
     for (let row = 0; row < matrix.length; row++) {
       for (let col = 0; col < matrix[row].length; col++) {
-        if (matrix[row][col]) {
+        if (matrix[row][col] && filter(row, col)) {
           ctx.fillStyle = options.color ? options.color : gradient;
 
           ctx.fillRect((col * blockSize) + borderWidth, (row * blockSize) + borderWidth, blockSize, blockSize);
@@ -122,12 +124,13 @@ export class QrService {
     options: QROptions,
     blockSize: number,
     borderWidth: number,
+    filter: (row: number, col: number) => boolean,
     gradient?: CanvasGradient
   ): void {
     // Draw QR code dots
     for (let row = 0; row < matrix.length; row++) {
       for (let col = 0; col < matrix[row].length; col++) {
-        if (matrix[row][col]) {
+        if (matrix[row][col] && filter(row, col)) {
           ctx.fillStyle = options.color ? options.color : gradient;
 
           ctx.beginPath();
@@ -151,14 +154,14 @@ export class QrService {
     options: QROptions,
     blockSize: number,
     borderWidth: number,
+    filter: (row: number, col: number) => boolean,
     gradient?: CanvasGradient
   ): void {
-
 
     // Draw QR code rounded
     for (let row = 0; row < matrix.length; row++) {
       for (let col = 0; col < matrix[row].length; col++) {
-        if (matrix[row][col]) {
+        if (matrix[row][col] && filter(row, col)) {
           ctx.fillStyle = options.color ? options.color : gradient;
 
 
@@ -216,92 +219,132 @@ export class QrService {
     }
   }
 
-    // Helper function to draw rectangles with inset rounded inner corners
-    private drawRoundedRect(
-      ctx: CanvasRenderingContext2D,
-      x: number,
-      y: number,
-      width: number,
-      height: number,
-      radii: {
-        topLeft: number;
-        topRight: number;
-        bottomLeft: number;
-        bottomRight: number;
-      }
-    ): void {
-      ctx.beginPath();
-  
-      // Draw top side
-      ctx.moveTo(x + radii.topLeft, y);
-      ctx.lineTo(x + width - radii.topRight, y);
-      ctx.arc(x + width - radii.topRight, y + radii.topRight, radii.topRight, -Math.PI / 2, 0);
-  
-      // Draw right side
-      ctx.lineTo(x + width, y + height - radii.bottomRight);
-      ctx.arc(x + width - radii.bottomRight, y + height - radii.bottomRight, radii.bottomRight, 0, Math.PI / 2);
-  
-      // Draw bottom side
-      ctx.lineTo(x + radii.bottomLeft, y + height);
-      ctx.arc(x + radii.bottomLeft, y + height - radii.bottomLeft, radii.bottomLeft, Math.PI / 2, Math.PI);
-  
-      // Draw left side
-      ctx.lineTo(x, y + radii.topLeft);
-      ctx.arc(x + radii.topLeft, y + radii.topLeft, radii.topLeft, Math.PI, 1.5 * Math.PI);
-  
-      ctx.closePath();
+  // Helper function to draw rectangles with inset rounded inner corners
+  private drawRoundedRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radii: {
+      topLeft: number;
+      topRight: number;
+      bottomLeft: number;
+      bottomRight: number;
     }
+  ): void {
+    ctx.beginPath();
 
-    private createQRCodeGradient(
-      ctx: CanvasRenderingContext2D,
-      qrSize: number,
-      gradientOptions: QROptions['gradient']
-    ): CanvasGradient {
-      if (gradientOptions.type === 'area') {
-        const centerX = qrSize / 2;
-        const centerY = qrSize / 2;
-        const radius = Math.sqrt(Math.pow(qrSize / 2, 2) * 2);
-        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-        gradient.addColorStop(0, gradientOptions.startColor);
-        gradient.addColorStop(1, gradientOptions.endColor);
-        return gradient;
-      } else {
-        const angleDegrees = gradientOptions.angleDegrees ?? 0;
-        const angleRadians = (angleDegrees * Math.PI) / 180;
-        const startX = qrSize / 2 * (1 - Math.cos(angleRadians));
-        const startY = qrSize / 2 * (1 - Math.sin(angleRadians));
-        const endX = qrSize / 2 * (1 + Math.cos(angleRadians));
-        const endY = qrSize / 2 * (1 + Math.sin(angleRadians));
-    
-        const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
-        gradient.addColorStop(0, gradientOptions.startColor);
-        gradient.addColorStop(1, gradientOptions.endColor);
-        return gradient;
-      }
+    // Draw top side
+    ctx.moveTo(x + radii.topLeft, y);
+    ctx.lineTo(x + width - radii.topRight, y);
+    ctx.arc(x + width - radii.topRight, y + radii.topRight, radii.topRight, -Math.PI / 2, 0);
+
+    // Draw right side
+    ctx.lineTo(x + width, y + height - radii.bottomRight);
+    ctx.arc(x + width - radii.bottomRight, y + height - radii.bottomRight, radii.bottomRight, 0, Math.PI / 2);
+
+    // Draw bottom side
+    ctx.lineTo(x + radii.bottomLeft, y + height);
+    ctx.arc(x + radii.bottomLeft, y + height - radii.bottomLeft, radii.bottomLeft, Math.PI / 2, Math.PI);
+
+    // Draw left side
+    ctx.lineTo(x, y + radii.topLeft);
+    ctx.arc(x + radii.topLeft, y + radii.topLeft, radii.topLeft, Math.PI, 1.5 * Math.PI);
+
+    ctx.closePath();
+  }
+
+  private createQRCodeGradient(
+    ctx: CanvasRenderingContext2D,
+    qrSize: number,
+    gradientOptions: QROptions['gradient']
+  ): CanvasGradient {
+    if (gradientOptions.type === 'area') {
+      const centerX = qrSize / 2;
+      const centerY = qrSize / 2;
+      const radius = Math.sqrt(Math.pow(qrSize / 2, 2) * 2);
+      const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+      gradient.addColorStop(0, gradientOptions.startColor);
+      gradient.addColorStop(1, gradientOptions.endColor);
+      return gradient;
+    } else {
+      const angleDegrees = gradientOptions.angleDegrees ?? 0;
+      const angleRadians = (angleDegrees * Math.PI) / 180;
+      const startX = qrSize / 2 * (1 - Math.cos(angleRadians));
+      const startY = qrSize / 2 * (1 - Math.sin(angleRadians));
+      const endX = qrSize / 2 * (1 + Math.cos(angleRadians));
+      const endY = qrSize / 2 * (1 + Math.sin(angleRadians));
+
+      const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+      gradient.addColorStop(0, gradientOptions.startColor);
+      gradient.addColorStop(1, gradientOptions.endColor);
+      return gradient;
     }
-    
+  }
 
-    private drawShapes(
+
+  private drawShapes(
+    ctx: CanvasRenderingContext2D,
+    matrix: number[][],
+    options: QROptions,
+    blockSize: number,
+    borderWidth: number,
+    gradient?: CanvasGradient
+  ): void {
+    const positionMarkerSize = 7;
+
+    // Draw the main QR code
+    this.drawQRCodeWithStyle(ctx, matrix, options, blockSize, borderWidth, options.shapeStyle, (row, col) => {
+      const isPositionMarker = (row < positionMarkerSize || row >= matrix.length - positionMarkerSize) && (col < positionMarkerSize || col >= matrix[row].length - positionMarkerSize);
+      return !this.isPositionMarker(row, col, matrix.length);;
+    }, gradient);
+
+    // Draw the position markers
+    if (options.positionMarkerShape) {
+      this.drawQRCodeWithStyle(ctx, matrix, options, blockSize, borderWidth, options.positionMarkerShape, (row, col) => {
+        const isPositionMarker = (row < positionMarkerSize || row >= matrix.length - positionMarkerSize) && (col < positionMarkerSize || col >= matrix[row].length - positionMarkerSize);
+        return this.isPositionMarker(row, col, matrix.length);
+
+      }, gradient);
+    }
+  }
+
+  private drawQRCodeWithStyle(
+    ctx: CanvasRenderingContext2D,
+    matrix: number[][],
+    options: QROptions,
+    blockSize: number,
+    borderWidth: number,
+    shapeStyle: 'square' | 'dot' | 'rounded',
+    filter: (row: number, col: number) => boolean,
+    gradient?: CanvasGradient,
+
+  ): void {
+    let drawFunction: (
       ctx: CanvasRenderingContext2D,
       matrix: number[][],
       options: QROptions,
       blockSize: number,
       borderWidth: number,
-      gradient?: CanvasGradient
-    ): void {
-      // Determine the draw function based on the shape style option
-      let drawFunction: (ctx: CanvasRenderingContext2D, matrix: number[][], options: QROptions, blockSize: number, borderWidth: number) => void;
-      if (options.shapeStyle === 'dot') {
-        drawFunction = this.drawDotsCode;
-      } else if (options.shapeStyle === 'rounded') {
-        drawFunction = this.drawQRCodeRounded;
-      } else {
-        drawFunction = this.drawSquaresCode;
-      }
-  
-      // Call the determined draw function
-      drawFunction.call(this, ctx, matrix, options, blockSize, borderWidth, gradient);
-    }
- 
+      filter: (row: number, col: number) => boolean
+    ) => void;
 
+    if (shapeStyle === 'dot') {
+      drawFunction = this.drawDotsCode;
+    } else if (shapeStyle === 'rounded') {
+      drawFunction = this.drawQRCodeRounded;
+    } else {
+      drawFunction = this.drawSquaresCode;
+    }
+
+    drawFunction.call(this, ctx, matrix, options, blockSize, borderWidth, filter, gradient);
+  }
+
+  private isPositionMarker(row: number, col: number, size: number, positionMarkerSize: number = 7): boolean {
+    const rowIsPositionMarker = row >= 0 && row <= positionMarkerSize || row >= size - positionMarkerSize;
+    const colIsPositionMarker = col >= 0 && col <= positionMarkerSize || col >= size - positionMarkerSize;
+    const excludeBottomRight = row >= size - positionMarkerSize && col >= size - positionMarkerSize;
+    return (rowIsPositionMarker && colIsPositionMarker) && !excludeBottomRight;
+  }
 }
