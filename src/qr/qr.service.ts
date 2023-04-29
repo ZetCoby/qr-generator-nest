@@ -1,20 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Module } from '@nestjs/common';
 import * as qr from 'qrcode-generator';
 import { createCanvas, loadImage, CanvasRenderingContext2D, Canvas } from 'canvas';
+import axios from 'axios';
+
 
 type DecimalRange = 0.0 | 0.1 | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 | 0.9 | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 | 1.7 | 1.8 | 1.9 | 2.0;
 
-interface QROptions {
+export interface QROptions {
   shapeStyle?: 'square' | 'dot' | 'rounded';
   positionMarkerShape?: 'square' | 'dot' | 'rounded';
   color?: string;
   border?: {
-    width: number;
-    color: string;
+    width?: number;
+    color?: string;
   } | null;
   background?: string | null;
   logo?: {
-    path: string;
+    url: string;
     maxSize?: number | null;
     opacity?: DecimalRange | null;
     proportion?: DecimalRange | null;
@@ -50,10 +52,43 @@ export class QrService {
     return matrix;
   }
 
-  async generateQR(data: string, size: number = 256, typeNumber: TypeNumber = 4, errorCorrectionLevel: ErrorCorrectionLevel = 'L', options: QROptions): Promise<Buffer> {
-    const matrix = this.generateQRMatrix(data, typeNumber, errorCorrectionLevel);
-    const pngBuffer = await this.renderQRCodePng(matrix, size, options);
-    return pngBuffer;
+  async generateQR(data: string,
+    size: number = 256,
+    typeNumber: TypeNumber = 4,
+    errorCorrectionLevel: ErrorCorrectionLevel = 'L',
+    options: QROptions): Promise<Buffer> {
+
+    options = {
+      ...options, ...Object.assign({}, {
+        shapeStyle: 'square',
+        positionMarkerShape: 'square',
+        border: { width: 1, color: 'white' },
+        background: 'white',
+        logo: null,
+        gradient: null,
+      }, options)
+    };
+    try {
+      if (!options.gradient) {
+        options.color = 'black';
+      }
+      const matrix = this.generateQRMatrix(data, typeNumber, errorCorrectionLevel);
+      const pngBuffer = await this.renderQRCodePng(matrix, size, options);
+      return pngBuffer;
+    } catch (error) {
+
+      if (typeNumber < 4) {
+        // If the error was caused by a code length overflow and the typeNumber and error correction level are below their maximum values, try again with a higher typeNumber or error correction level
+        if (error.includes('code length overflow')) {
+          return this.generateQR(data, size, 4, errorCorrectionLevel, options);
+        }
+      }
+      // Otherwise, re-throw the error
+      if (error.message.includes('code length overflow')) {
+        throw { error: "code length overflow", description: "The error message you are seeing is caused by the fact that the data you are trying to encode is too long for the specified typeNumber and errorCorrectionLevel. To handle this error, you could either increase the typeNumber or use a higher error correction level to allow for more data to be encoded." };
+      }
+      throw "Something went wrong. Please try again later.";
+    }
   }
 
 
@@ -74,11 +109,12 @@ export class QrService {
     this.drawShapes(ctx, matrix, options, blockSize, borderWidth, gradient);
 
     // Draw logo in the middle
-    if (options.logo) {
-      const logo = await loadImage(options.logo.path);
+    if (options.logo && options.logo.url) {
+      const response = await axios.get(options.logo.url, { responseType: 'arraybuffer' });
+      const logo = await loadImage(response.data);
 
       // Calculate the logo size as a proportion of the QR code size
-      const logoProportion = options.logo.proportion; // Adjust this value to change the logo size proportion
+      const logoProportion = options.logo.proportion ?? 0.3; // Adjust this value to change the logo size proportion
       const logoSize = Math.min(qrSize * logoProportion, options.logo.maxSize || Number.MAX_VALUE);
 
       const logoX = (canvasSize - logoSize) / 2;
@@ -92,6 +128,7 @@ export class QrService {
       // Reset the opacity for other drawings
       ctx.globalAlpha = 1;
     }
+
 
     const buffer = canvas.toBuffer('image/png');
     return buffer;
@@ -265,8 +302,8 @@ export class QrService {
       const centerY = qrSize / 2;
       const radius = Math.sqrt(Math.pow(qrSize / 2, 2) * 2);
       const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-      gradient.addColorStop(0, gradientOptions.startColor);
-      gradient.addColorStop(1, gradientOptions.endColor);
+      gradient.addColorStop(0, gradientOptions.startColor || 'black');
+      gradient.addColorStop(1, gradientOptions.endColor || 'black');
       return gradient;
     } else {
       const angleDegrees = gradientOptions.angleDegrees ?? 0;
@@ -277,8 +314,8 @@ export class QrService {
       const endY = qrSize / 2 * (1 + Math.sin(angleRadians));
 
       const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
-      gradient.addColorStop(0, gradientOptions.startColor);
-      gradient.addColorStop(1, gradientOptions.endColor);
+      gradient.addColorStop(0, gradientOptions.startColor || 'black');
+      gradient.addColorStop(1, gradientOptions.endColor || 'black');
       return gradient;
     }
   }
